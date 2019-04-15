@@ -36,10 +36,11 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.layers = nn.Sequential(
             nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, 1)
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(hidden_size, hidden_size//2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(hidden_size//2, 1),
+            nn.Sigmoid(), 
         )
         self.weights_init()
     def weights_init(m):
@@ -49,14 +50,16 @@ class Discriminator(nn.Module):
     
     def forward(self, x):
         # flatten input if needed
-        x = x.view(x.size(0)*x.size(1))
+        x = torch.cat((x[:,0], x[:,1]), 0)
+        #x.view(512*2)
+        #print(x)
         x = self.layers(x)
-        return torch.sigmoid(x)
+        return x
 
 
 
 def train(model, loss_fn, num_epochs, batch_size):
-    phi = 1
+    phi = 0.1
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
     p_generator = sampler.distribution1(0, batch_size=batch_size)
     q_generator = sampler.distribution1(phi, batch_size=batch_size)
@@ -65,26 +68,28 @@ def train(model, loss_fn, num_epochs, batch_size):
     for epoch in range(num_epochs):
         model.train()
         optimizer.zero_grad()
-
         
         p = torch.tensor(next(p_generator), dtype=torch.float)
         q = torch.tensor(next(q_generator), dtype=torch.float)
 
-
         Dx = model(Variable(p))
         Dy = model(Variable(q))
-        loss = JSD_loss_function(Dx, Dy, p, q)
+        loss = loss_fn(Dx, Dy, p, q)
 
         if loss_fn == W_loss_function:
+            Dz = model(Variable(p))
+            loss.backward(retain_graph=True, create_graph=True)
+            grad_Tz = torch.autograd.grad(loss, Dz, retain_graph=True)
+            loss += torch.norm(grad_Tz, p=2, dim=-1)
             print('agg grad')
-
+        
         loss.backward()
 
         losses.append(loss)
         optimizer.step()
         
-        #if( epoch % int(num_epochs/10)) == (int(num_epochs/10)-1) :
-        print( "Epoch %6d. Loss %5.3f" % ( epoch+1, loss ) )
+        if( epoch % int(num_epochs/10)) == (int(num_epochs/10)-1) :
+            print( "Epoch %6d. Loss %5.3f" % ( epoch+1, loss ) )
         
     print( "Training complete" )
         
