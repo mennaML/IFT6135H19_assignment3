@@ -33,3 +33,4 @@ if __name__ == '__main__':
     # Example of usage
     dist = iter(distribution1(0, 100))
     samples = next(dist)
+
