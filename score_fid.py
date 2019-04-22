@@ -6,6 +6,9 @@ import torch
 import classify_svhn
 from classify_svhn import Classifier
 
+import numpy as np
+from scipy import linalg
+
 SVHN_PATH = "svhn"
 PROCESS_BATCH_SIZE = 32
 
@@ -75,11 +78,31 @@ def calculate_fid_score(sample_feature_iterator,
     """
     To be implemented by you!
     """
-    raise NotImplementedError(
-        "TO BE IMPLEMENTED."
-        "Part of Assignment 3 Quantitative Evaluations"
-    )
 
+    sample_data = []
+    for i in sample_feature_iterator:
+        sample_data.append(i)
+    sample_data = np.array(sample_data)
+    mu_sample = np.mean(sample_data, axis=0)
+    cov_sample = np.cov(sample_data, rowvar=False)
+    sample_data = 0
+
+    testset_data = []
+    for i in testset_feature_iterator:
+        testset_data.append(i)
+    testset_data = np.array(testset_data)
+    mu_testset = np.mean(testset_data, axis=0)
+    cov_testset = np.cov(testset_data, rowvar=False)
+    testset_data = 0
+
+    mu_diff = mu_sample - mu_testset
+
+    eps=1e-4
+    offset = np.eye(cov_sample.shape[0]) * eps
+    covmean, _ = linalg.sqrtm((cov_sample + offset).dot(cov_testset + offset), disp=False)
+    print(cov_sample)
+    fid_score = mu_diff.dot(mu_diff) + np.trace(cov_sample) + np.trace(cov_testset) - 2*np.trace(covmean)
+    return fid_score
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
